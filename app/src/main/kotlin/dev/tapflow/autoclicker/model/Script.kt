@@ -23,8 +23,25 @@ enum class RunMode(val label: String) {
   SYNC("All at once"),
 }
 
+/**
+ * What the floating panel is set up for. Each mode shows only the buttons it needs,
+ * so the panel isn't crowded with tools the user isn't using.
+ */
+@Serializable
+enum class PanelMode(val title: String, val description: String, val icon: String) {
+  SINGLE("Single target", "One spot, tapped again and again", "👆"),
+  MULTI("Multi targets", "Several taps and swipes, one after another", "🔢"),
+  SYNC("Sync", "Several spots tapped at the same moment", "🖐"),
+  RECORD("Record", "Do it once yourself, then replay it", "⏺"),
+  IMAGE("Find image", "Wait for something to appear, then tap it", "🖼"),
+  ADVANCED("Everything", "All tools in one panel", "🧰"),
+}
+
 @Serializable
 data class Pt(val x: Float, val y: Float)
+
+/** Default wait after each step, in milliseconds. */
+const val NEW_TARGET_DELAY_MS = 100L
 
 /** One point (or swipe) on screen. Coordinates are absolute screen pixels. */
 @Serializable
@@ -35,7 +52,7 @@ data class ClickTarget(
   val endX: Float = x,
   val endY: Float = y,
   val pressMs: Long = type.defaultPressMs,
-  val delayAfterMs: Long = 300,
+  val delayAfterMs: Long = NEW_TARGET_DELAY_MS,
   /** Extra random 0..N ms added to the delay, for human-like pacing. */
   val randomDelayMs: Long = 0,
   /** Random +/- N px applied to the touch position. */
@@ -50,6 +67,8 @@ data class ClickTarget(
   val waitTimeoutMs: Long = 10_000,
   /** IMAGE only: stop the whole script if the image never shows up (otherwise skip this step). */
   val stopIfNotFound: Boolean = false,
+  /** Optional name the user gave this step, e.g. "Collect reward". */
+  val name: String? = null,
 )
 
 @Serializable
@@ -65,6 +84,8 @@ data class Script(
   val startDelayMs: Long = 0,
   /** Minute of the day (0..1439) to start at, or -1 to start right away. */
   val startAtMinute: Int = -1,
+  /** The panel mode this script was made in; it reopens in the same mode. */
+  val panelMode: PanelMode = PanelMode.ADVANCED,
   val updatedAt: Long = System.currentTimeMillis(),
 ) {
   /** Milliseconds until the next occurrence of [startAtMinute], or 0 if not scheduled. */

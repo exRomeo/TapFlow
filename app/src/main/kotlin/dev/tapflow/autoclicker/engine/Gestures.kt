@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.accessibilityservice.GestureDescription.StrokeDescription
 import android.graphics.Path
+import dev.tapflow.autoclicker.ClickerState
 import dev.tapflow.autoclicker.model.ActionType
 import dev.tapflow.autoclicker.model.ClickTarget
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -35,7 +36,16 @@ fun ClickTarget.toGesture(random: Random = Random.Default): GestureDescription =
   GestureDescription.Builder().addStroke(toStroke(random)).build()
 
 /** Dispatches a gesture and suspends until the system reports it completed or was cancelled. */
-suspend fun AccessibilityService.dispatchAndAwait(gesture: GestureDescription): Boolean =
+suspend fun AccessibilityService.dispatchAndAwait(gesture: GestureDescription): Boolean {
+  ClickerState.gestureActive.value = true
+  try {
+    return dispatchRaw(gesture)
+  } finally {
+    ClickerState.gestureActive.value = false
+  }
+}
+
+private suspend fun AccessibilityService.dispatchRaw(gesture: GestureDescription): Boolean =
   suspendCancellableCoroutine { cont ->
     val callback = object : AccessibilityService.GestureResultCallback() {
       override fun onCompleted(gestureDescription: GestureDescription?) {

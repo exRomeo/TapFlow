@@ -25,6 +25,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -45,6 +46,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import dev.tapflow.autoclicker.ClickerState
 import dev.tapflow.autoclicker.Prefs
 import dev.tapflow.autoclicker.data.ScriptStore
+import dev.tapflow.autoclicker.model.PanelMode
 import dev.tapflow.autoclicker.model.Script
 import dev.tapflow.autoclicker.service.ClickerService
 import kotlinx.coroutines.Dispatchers
@@ -67,6 +69,12 @@ fun HomeScreen(onPanelOpened: () -> Unit) {
   val libraryVersion by ClickerState.libraryVersion.collectAsState()
   val enabled = remember(resumeCount, connected) { connected || ClickerState.isServiceEnabled(context) }
   val batteryOk = remember(resumeCount) { isIgnoringBatteryOptimizations(context) }
+  // Off now, but it has run before: Android (usually a battery manager) or the user switched it off.
+  val switchedOff = !enabled && remember(resumeCount) { Prefs.wasConnected(context) }
+  val guide = remember { oemGuideFor() }
+  var oemGuideDone by remember { mutableStateOf(Prefs.oemGuideDone(context)) }
+  var stopOnTouch by remember { mutableStateOf(Prefs.stopOnTouch(context)) }
+  var keepScreenOn by remember { mutableStateOf(Prefs.keepScreenOn(context)) }
 
   var showDisclosure by remember { mutableStateOf(false) }
   // Someone who agreed to an older explanation is asked again about the new use.
@@ -77,6 +85,8 @@ fun HomeScreen(onPanelOpened: () -> Unit) {
   var declined by remember { mutableStateOf(false) }
   var scripts by remember { mutableStateOf(emptyList<Script>()) }
   var pendingDelete by remember { mutableStateOf<Script?>(null) }
+  var details by remember { mutableStateOf<Script?>(null) }
+  var showAppearance by remember { mutableStateOf(false) }
 
   LaunchedEffect(libraryVersion, resumeCount) {
     scripts = withContext(Dispatchers.IO) { store.list() }
@@ -86,12 +96,12 @@ fun HomeScreen(onPanelOpened: () -> Unit) {
     if (Prefs.hasCurrentConsent(context)) openAccessibilitySettings(context) else showDisclosure = true
   }
 
-  fun openPanel(script: Script?) {
+  fun openPanel(script: Script?, mode: PanelMode? = null) {
     val service = ClickerService.instance
     if (service == null) {
       enableService()
     } else {
-      service.openPanel(script)
+      service.openPanel(script, mode)
       onPanelOpened()
     }
   }
@@ -107,20 +117,32 @@ fun HomeScreen(onPanelOpened: () -> Unit) {
 
     item {
       StatusCard(
-        title = if (connected) "Ready" else if (enabled) "Service enabled, starting…" else "Accessibility service is off",
-        body = if (connected) {
-          "Open the floating panel, add targets with + or ↗, record with ●, or add an image step with 🖼. Then press ▶."
-        } else {
-          "TapFlow needs its accessibility service turned on to perform taps for you."
+        title = when {
+          connected -> "Ready"
+          enabled -> "Service enabled, starting…"
+          switchedOff -> "TapFlow was switched off"
+          else -> "Accessibility service is off"
+        },
+        body = when {
+          connected ->
+            "Pick a mode below. The floating panel then shows only the tools that mode needs."
+          switchedOff ->
+            "If you didn't turn it off yourself, your phone's battery manager probably did. " +
+              "Turn it back on, then follow \"Keep TapFlow running\" below so it stays on."
+          else -> "TapFlow needs its accessibility service turned on to perform taps for you."
         },
         good = connected,
       ) {
         if (connected) {
-          Button(onClick = { openPanel(null) }) { Text("Open floating panel") }
+          OutlinedButton(onClick = { openPanel(null) }) { Text("Reopen last panel") }
         } else {
-          Button(onClick = ::enableService) { Text("Turn on accessibility service") }
+          Button(onClick = ::enableService) { Text(if (switchedOff) "Turn it back on" else "Turn on accessibility service") }
         }
       }
+    }
+
+    if (connected) {
+      item { ModePicker(onPick = { openPanel(null, it) }) }
     }
 
     if (declined && !connected) {
@@ -148,15 +170,54 @@ fun HomeScreen(onPanelOpened: () -> Unit) {
       }
     }
 
-    if (!batteryOk) {
+    if (!batteryOk || !oemGuideDone || switchedOff) {
       item {
         StatusCard(
-          title = "Keep TapFlow running",
-          body = "Battery optimization can switch the clicker off. Set TapFlow to \"Unrestricted\" / \"Don't optimize\"." +
-            if (Build.MANUFACTURER.equals("xiaomi", ignoreCase = true)) " On Xiaomi, also enable Autostart." else "",
+          title = "Keep TapFlow running (${guide.brand})",
+          body = "Phones switch background apps off to save battery. Do these once:\n" +
+            guide.steps.mapIndexed { i, step -> "${i + 1}. $step" }.joinToString("\n"),
           good = null,
         ) {
-          OutlinedButton(onClick = { openBatterySettings(context) }) { Text("Battery settings") }
+          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (!batteryOk) {
+              OutlinedButton(onClick = { openBatterySettings(context) }) { Text("Battery") }
+            }
+            OutlinedButton(onClick = { openOemSettings(context, guide) }) { Text("Phone settings") }
+          }
+          if (!oemGuideDone) {
+            TextButton(onClick = {
+              Prefs.setOemGuideDone(context, true)
+              oemGuideDone = true
+            }) { Text("I've done this") }
+          }
+        }
+      }
+    }
+
+    item {
+      StatusCard(
+        title = "Panel and markers",
+        body = "Size, opacity, orientation, and shrinking the panel while running.",
+        good = null,
+      ) {
+        if (showAppearance) {
+          AppearanceSettings()
+          TextButton(onClick = { showAppearance = false }) { Text("Hide") }
+        } else {
+          OutlinedButton(onClick = { showAppearance = true }) { Text("Customize") }
+        }
+      }
+    }
+
+    item {
+      StatusCard(title = "While a script runs", body = "Scripts always stop when a call starts or the screen turns off.", good = null) {
+        SettingSwitch("Stop when I touch the screen", stopOnTouch) {
+          stopOnTouch = it
+          Prefs.setStopOnTouch(context, it)
+        }
+        SettingSwitch("Keep the screen on", keepScreenOn) {
+          keepScreenOn = it
+          Prefs.setKeepScreenOn(context, it)
         }
       }
     }
@@ -176,18 +237,15 @@ fun HomeScreen(onPanelOpened: () -> Unit) {
     }
 
     items(scripts, key = { it.id }) { script ->
-      Card(modifier = Modifier.fillMaxWidth()) {
+      Card(onClick = { details = script }, modifier = Modifier.fillMaxWidth()) {
         Row(
           modifier = Modifier.padding(16.dp),
           verticalAlignment = Alignment.CenterVertically,
         ) {
           Column(modifier = Modifier.weight(1f)) {
             Text(script.name, fontWeight = FontWeight.SemiBold)
-            Text(
-              "${script.targets.size} target${if (script.targets.size == 1) "" else "s"} · ${script.mode.label} · " +
-                if (script.loops == 0) "repeat forever" else "${script.loops}×",
-              style = MaterialTheme.typography.bodySmall,
-            )
+            Text(scriptSummary(script), style = MaterialTheme.typography.bodySmall)
+            Text("Tap for details", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
           }
           TextButton(onClick = { pendingDelete = script }) { Text("Delete") }
           Spacer(Modifier.width(4.dp))
@@ -215,6 +273,17 @@ fun HomeScreen(onPanelOpened: () -> Unit) {
         // Keep the old consent: plain taps still work, image steps stay off.
         showUpdatedDisclosure = false
       },
+    )
+  }
+
+  details?.let { script ->
+    ScriptDetailsDialog(
+      script = script,
+      onLoad = {
+        details = null
+        openPanel(script)
+      },
+      onDismiss = { details = null },
     )
   }
 
@@ -289,6 +358,14 @@ private fun AccessibilityDisclosure(updated: Boolean, onAccept: () -> Unit, onDe
     confirmButton = { Button(onClick = onAccept) { Text(if (updated) "Agree" else "Agree and continue") } },
     dismissButton = { TextButton(onClick = onDecline) { Text("No thanks") } },
   )
+}
+
+@Composable
+private fun SettingSwitch(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+  Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+    Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+    Switch(checked = checked, onCheckedChange = onChange)
+  }
 }
 
 @Composable

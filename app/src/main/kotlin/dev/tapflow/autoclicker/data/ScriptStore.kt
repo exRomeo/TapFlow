@@ -13,7 +13,7 @@ import java.io.File
 class ScriptStore(private val dir: File) {
   constructor(context: Context) : this(File(context.filesDir, "scripts"))
 
-  private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
+  private val json = Json { ignoreUnknownKeys = true; prettyPrint = true; encodeDefaults = true }
 
   init {
     dir.mkdirs()

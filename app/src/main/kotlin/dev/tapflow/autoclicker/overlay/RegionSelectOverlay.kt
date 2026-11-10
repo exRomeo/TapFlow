@@ -8,6 +8,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.PixelFormat
 import android.graphics.Rect
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.view.Gravity
 import android.view.MotionEvent
@@ -42,34 +43,59 @@ class RegionSelectOverlay(
     val selector = SelectorView(ctx)
     frame.addView(selector, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
 
-    val hint = TextView(ctx).apply {
-      text = "Drag a box around the image to look for"
-      setTextColor(Color.WHITE)
-      textSize = 15f
-      setPadding(dp(16), dp(10), dp(16), dp(10))
-      setBackgroundColor(0xCC202124.toInt())
-    }
-    frame.addView(hint, FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT, Gravity.TOP or Gravity.CENTER_HORIZONTAL)
-      .apply { topMargin = dp(56) })
-
+    // One compact bar holding the hint and both buttons. Drag it by the ≡ handle (or any
+    // non-button part) to uncover whatever it is covering.
     val bar = LinearLayout(ctx).apply {
       orientation = LinearLayout.HORIZONTAL
-      setBackgroundColor(0xE6FFFFFF.toInt())
-      setPadding(dp(8), dp(4), dp(8), dp(4))
+      gravity = Gravity.CENTER_VERTICAL
+      setPadding(dp(6), dp(2), dp(6), dp(2))
+      background = GradientDrawable().apply {
+        cornerRadius = dp(22).toFloat()
+        setColor(0xEE202124.toInt())
+        setStroke(dp(1), 0x66FFFFFF)
+      }
     }
-    val useButton = Button(ctx, null, android.R.attr.borderlessButtonStyle).apply {
-      text = "Use selection"
+    bar.addView(TextView(ctx).apply {
+      text = "≡"
+      textSize = 20f
+      setTextColor(Color.WHITE)
+      gravity = Gravity.CENTER
+      contentDescription = "Move this bar"
+    }, LinearLayout.LayoutParams(dp(36), dp(44)))
+    bar.addView(TextView(ctx).apply {
+      text = "Box the image"
+      textSize = 14f
+      setTextColor(0xFFDDDDDD.toInt())
+      setPadding(0, 0, dp(4), 0)
+    })
+    fun barButton(label: String) = Button(ctx, null, android.R.attr.borderlessButtonStyle).apply {
+      text = label
+      isAllCaps = false
+      setTextColor(Color.WHITE)
+      minWidth = 0
+      minimumWidth = 0
+      setPadding(dp(10), 0, dp(10), 0)
+    }
+    val useButton = barButton("Use").apply {
       isEnabled = false
+      alpha = 0.4f
       setOnClickListener { finish(selector.selection()) }
     }
-    bar.addView(Button(ctx, null, android.R.attr.borderlessButtonStyle).apply {
-      text = "Cancel"
-      setOnClickListener { finish(null) }
-    })
+    bar.addView(barButton("Cancel").apply { setOnClickListener { finish(null) } })
     bar.addView(useButton)
     frame.addView(bar, FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
       .apply { bottomMargin = dp(48) })
-    selector.onSelectionChanged = { useButton.isEnabled = it != null }
+    bar.isClickable = true
+    makeBarDraggable(bar, frame)
+    // Belt and braces: a drag that starts on the bar never draws a selection box.
+    selector.isOnBar = { x, y ->
+      val loc = IntArray(2).also(bar::getLocationOnScreen)
+      x >= loc[0] && x < loc[0] + bar.width && y >= loc[1] && y < loc[1] + bar.height
+    }
+    selector.onSelectionChanged = {
+      useButton.isEnabled = it != null
+      useButton.alpha = if (it != null) 1f else 0.4f
+    }
 
     val lp = WLP(
       MATCH_PARENT, MATCH_PARENT, WLP.TYPE_ACCESSIBILITY_OVERLAY,
@@ -83,6 +109,33 @@ class RegionSelectOverlay(
     }
     wm.addView(frame, lp)
     root = frame
+  }
+
+  /** Moves [bar] with the finger, kept inside [container]. Button presses still work. */
+  @SuppressLint("ClickableViewAccessibility")
+  private fun makeBarDraggable(bar: View, container: View) {
+    var downX = 0f
+    var downY = 0f
+    var startTx = 0f
+    var startTy = 0f
+    bar.setOnTouchListener { _, e ->
+      when (e.actionMasked) {
+        MotionEvent.ACTION_DOWN -> {
+          downX = e.rawX; downY = e.rawY
+          startTx = bar.translationX; startTy = bar.translationY
+        }
+        MotionEvent.ACTION_MOVE -> {
+          // Clamp so the whole bar stays on screen.
+          val minTx = -bar.left.toFloat()
+          val maxTx = (container.width - bar.right).toFloat()
+          val minTy = -bar.top.toFloat()
+          val maxTy = (container.height - bar.bottom).toFloat()
+          bar.translationX = (startTx + e.rawX - downX).coerceIn(minTx, maxTx)
+          bar.translationY = (startTy + e.rawY - downY).coerceIn(minTy, maxTy)
+        }
+      }
+      true
+    }
   }
 
   private fun finish(rect: Rect?) {
@@ -101,6 +154,7 @@ class RegionSelectOverlay(
     private var endY = 0f
     private var hasBox = false
     var onSelectionChanged: (Rect?) -> Unit = {}
+    var isOnBar: (Float, Float) -> Boolean = { _, _ -> false }
 
     private val dim = Paint().apply { color = 0x99000000.toInt() }
     private val outline = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -140,6 +194,8 @@ class RegionSelectOverlay(
     }
 
     override fun onTouchEvent(e: MotionEvent): Boolean {
+      // Not consuming the down event means the rest of this gesture isn't ours either.
+      if (e.actionMasked == MotionEvent.ACTION_DOWN && isOnBar(e.rawX, e.rawY)) return false
       when (e.actionMasked) {
         MotionEvent.ACTION_DOWN -> {
           startX = e.rawX; startY = e.rawY

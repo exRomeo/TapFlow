@@ -10,6 +10,18 @@ import android.util.TypedValue
 import android.view.View
 import dev.tapflow.autoclicker.model.ActionType
 
+/** Where a step stands in the current round, shown as a traffic-light ring. */
+enum class StepState(val ring: Int) {
+  /** Not running, or later in the round: white. */
+  IDLE(Color.WHITE),
+  /** Already played this round: red. */
+  DONE(0xFFF44336.toInt()),
+  /** Its gesture is being performed right now: green. */
+  CURRENT(0xFF4CAF50.toInt()),
+  /** Plays next: yellow. */
+  NEXT(0xFFFFEB3B.toInt()),
+}
+
 /** Numbered circle that marks where a tap lands. Swipe end points are drawn hollow. */
 @SuppressLint("ViewConstructor")
 class MarkerView(
@@ -24,11 +36,21 @@ class MarkerView(
     color = colorFor(type)
     alpha = if (isEnd) 90 else 210
   }
+  private val ringWidth = 2.5f * density
+  private val activeRingWidth = 4.5f * density
   private val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply {
     style = Paint.Style.STROKE
-    strokeWidth = 2.5f * density
+    strokeWidth = ringWidth
     color = Color.WHITE
   }
+
+  /** Traffic-light state of this marker's step. */
+  var state = StepState.IDLE
+    set(value) {
+      if (field == value) return
+      field = value
+      invalidate()
+    }
   private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
     color = Color.WHITE
     textAlign = Paint.Align.CENTER
@@ -44,13 +66,16 @@ class MarkerView(
   override fun onDraw(canvas: Canvas) {
     val cx = width / 2f
     val cy = height / 2f
-    val r = minOf(width, height) / 2f - ring.strokeWidth
+    val r = minOf(width, height) / 2f - activeRingWidth
+    ring.strokeWidth = if (state == StepState.IDLE) ringWidth else activeRingWidth
+    ring.color = state.ring
     canvas.drawCircle(cx, cy, r, fill)
     canvas.drawCircle(cx, cy, r, ring)
     canvas.drawText(label, cx, cy - (text.descent() + text.ascent()) / 2, text)
   }
 
   companion object {
+
     fun colorFor(type: ActionType): Int = when (type) {
       ActionType.TAP -> 0xFF1E88E5.toInt()
       ActionType.LONG_PRESS -> 0xFFFB8C00.toInt()
