@@ -5,6 +5,7 @@ import android.accessibilityservice.GestureDescription
 import android.os.SystemClock
 import android.util.Log
 import dev.tapflow.autoclicker.ClickerState
+import dev.tapflow.autoclicker.Prefs
 import dev.tapflow.autoclicker.data.TemplateStore
 import dev.tapflow.autoclicker.model.ActionType
 import dev.tapflow.autoclicker.model.ClickTarget
@@ -115,6 +116,10 @@ class ScriptRunner(
    * script deadline hits. With several images, the best-scoring one above the threshold wins.
    */
   private suspend fun waitForImage(target: ClickTarget, deadline: Long): MatchResult? {
+    if (!Prefs.imageStepsAllowed(service)) {
+      Log.w(TAG, "image steps need the updated consent, skipping")
+      return null
+    }
     val images = withContext(Dispatchers.IO) { target.imageFiles.mapNotNull(templates::load) }
     if (images.isEmpty()) {
       Log.w(TAG, "image step has no usable images")

@@ -27,6 +27,7 @@ import android.widget.RadioGroup
 import android.widget.ScrollView
 import android.widget.TextView
 import dev.tapflow.autoclicker.ClickerState
+import dev.tapflow.autoclicker.Prefs
 import dev.tapflow.autoclicker.engine.captureScreen
 import dev.tapflow.autoclicker.engine.imageStepsSupported
 import dev.tapflow.autoclicker.model.ActionType
@@ -182,6 +183,10 @@ class OverlayManager(private val service: ClickerService, private val scope: Cor
   private fun captureImage(appendTo: Int?) {
     if (!imageStepsSupported) {
       service.toast("Image steps need Android 11 or newer")
+      return
+    }
+    if (!Prefs.imageStepsAllowed(service)) {
+      service.toast("Open TapFlow and agree to the updated permission explanation to use image steps")
       return
     }
     service.stopRun()

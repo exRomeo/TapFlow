@@ -39,7 +39,10 @@ class ClickerService : AccessibilityService() {
     store = ScriptStore(this)
     templates = TemplateStore(this)
     runner = ScriptRunner(this, scope, templates)
-    overlay = OverlayManager(this, scope).also { it.showPanel() }
+    // The panel opens only when the user asks for it in the app ("Open floating panel" or
+    // "Load"), not whenever the system (re)connects the service: after enabling it, a reboot,
+    // or an app update.
+    overlay = OverlayManager(this, scope)
     ClickerState.connected.value = true
   }
 

@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
@@ -67,6 +69,11 @@ fun HomeScreen(onPanelOpened: () -> Unit) {
   val batteryOk = remember(resumeCount) { isIgnoringBatteryOptimizations(context) }
 
   var showDisclosure by remember { mutableStateOf(false) }
+  // Someone who agreed to an older explanation is asked again about the new use.
+  var showUpdatedDisclosure by remember {
+    mutableStateOf(Prefs.acceptedDisclosureVersion(context).let { it in 1 until Prefs.DISCLOSURE_VERSION })
+  }
+  var showPrivacy by remember { mutableStateOf(false) }
   var declined by remember { mutableStateOf(false) }
   var scripts by remember { mutableStateOf(emptyList<Script>()) }
   var pendingDelete by remember { mutableStateOf<Script?>(null) }
@@ -76,7 +83,7 @@ fun HomeScreen(onPanelOpened: () -> Unit) {
   }
 
   fun enableService() {
-    if (Prefs.disclosureAccepted(context)) openAccessibilitySettings(context) else showDisclosure = true
+    if (Prefs.hasCurrentConsent(context)) openAccessibilitySettings(context) else showDisclosure = true
   }
 
   fun openPanel(script: Script?) {
@@ -189,11 +196,35 @@ fun HomeScreen(onPanelOpened: () -> Unit) {
       }
     }
 
-    item { Spacer(Modifier.padding(8.dp)) }
+    item {
+      TextButton(onClick = { showPrivacy = true }, modifier = Modifier.padding(top = 8.dp)) {
+        Text("Privacy policy")
+      }
+      Spacer(Modifier.padding(8.dp))
+    }
+  }
+
+  if (showUpdatedDisclosure && !showDisclosure) {
+    AccessibilityDisclosure(
+      updated = true,
+      onAccept = {
+        Prefs.setDisclosureAccepted(context, true)
+        showUpdatedDisclosure = false
+      },
+      onDecline = {
+        // Keep the old consent: plain taps still work, image steps stay off.
+        showUpdatedDisclosure = false
+      },
+    )
+  }
+
+  if (showPrivacy) {
+    PrivacyPolicyDialog(onDismiss = { showPrivacy = false })
   }
 
   if (showDisclosure) {
     AccessibilityDisclosure(
+      updated = false,
       onAccept = {
         Prefs.setDisclosureAccepted(context, true)
         showDisclosure = false
@@ -229,21 +260,33 @@ fun HomeScreen(onPanelOpened: () -> Unit) {
 
 /** Google Play's required prominent disclosure, shown before sending the user to settings. */
 @Composable
-private fun AccessibilityDisclosure(onAccept: () -> Unit, onDecline: () -> Unit) {
+private fun AccessibilityDisclosure(updated: Boolean, onAccept: () -> Unit, onDecline: () -> Unit) {
   AlertDialog(
     onDismissRequest = onDecline,
-    title = { Text("Accessibility Service use") },
+    title = { Text(if (updated) "Updated: Accessibility Service use" else "Accessibility Service use") },
     text = {
-      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+      Column(
+        modifier = Modifier.verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+      ) {
+        if (updated) {
+          Text(
+            "TapFlow can now find images on screen. This adds screenshots to what it does, so it needs your OK again. " +
+              "If you say no, taps keep working and image steps stay off.",
+            fontWeight = FontWeight.SemiBold,
+          )
+        }
         Text("TapFlow uses Android's Accessibility Service API to perform taps, long presses and swipes at the screen positions you set, when you press Play.")
         Text("• For image steps only, it takes screenshots to find the images you picked. They are checked on your device and never saved or sent.")
         Text("• It does not read the text or content of other apps.")
         Text("• It does not collect, store remotely or share any personal data.")
         Text("• Your scripts are saved only on this device.")
-        Text("Without this permission TapFlow cannot click for you. On the next screen, find TapFlow and turn it on.")
+        if (!updated) {
+          Text("Without this permission TapFlow cannot click for you. On the next screen, find TapFlow and turn it on.")
+        }
       }
     },
-    confirmButton = { Button(onClick = onAccept) { Text("Agree and continue") } },
+    confirmButton = { Button(onClick = onAccept) { Text(if (updated) "Agree" else "Agree and continue") } },
     dismissButton = { TextButton(onClick = onDecline) { Text("No thanks") } },
   )
 }
