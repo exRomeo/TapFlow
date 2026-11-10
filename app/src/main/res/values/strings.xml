@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">TapFlow</string>
+    <string name="accessibility_service_label">TapFlow Auto Clicker</string>
+    <string name="accessibility_service_description">TapFlow performs taps, swipes and long presses at the screen positions you choose, only after you press Play on its floating panel. For image steps it takes screenshots, which are checked on your device and never stored or sent. It does not read the text or content of other apps, and it does not collect or share any data.</string>
+</resources>
