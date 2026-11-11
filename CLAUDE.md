@@ -17,9 +17,9 @@ Android auto clicker built on an `AccessibilityService`, with no root needed. Ko
 Keep this CLAUDE.md accurate the same way. If a command, path or convention below changes, fix it here too.
 
 ## Branches
-- **`develop` always holds the latest approved work.** Never commit unreviewed work to it directly.
-- Start every piece of work on a new `feature/<name>` branch cut from the current `develop`.
-- When the user approves the work (and it is committed), merge it into `develop`. Use a fast-forward when possible, otherwise `git merge --no-ff`. Then start the next feature from the updated `develop`.
+- **`development` always holds the latest approved work.** Never commit unreviewed work to it directly.
+- Start every piece of work on a new `feature/<name>` branch cut from the current `development`.
+- When the user approves the work (and it is committed), merge it into `development`. Use a fast-forward when possible, otherwise `git merge --no-ff`. Then start the next feature from the updated `development`.
 - Older `feature/*` branches are history; don't build on them.
 
 ## Commands
