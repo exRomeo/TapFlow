@@ -31,7 +31,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
 ## Rules
-- Commit only when asked. There is no `main` and no remote yet.
+- Commit only when asked, and push only when asked. The remote is `origin` (GitHub: `exRomeo/TapFlow`); there is no `main` branch yet.
 - Never commit `keystore.properties`, `*.jks` or `local.properties` (already git-ignored).
 - Never `am force-stop dev.tapflow.autoclicker` while testing on a device: it switches the accessibility service off, and only the user can turn it back on.
 - If the app starts using the AccessibilityService for something new, bump `Prefs.DISCLOSURE_VERSION` and update:
