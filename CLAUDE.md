@@ -16,6 +16,12 @@ Android auto clicker built on an `AccessibilityService`, with no root needed. Ko
 
 Keep this CLAUDE.md accurate the same way. If a command, path or convention below changes, fix it here too.
 
+## Branches
+- **`develop` always holds the latest approved work.** Never commit unreviewed work to it directly.
+- Start every piece of work on a new `feature/<name>` branch cut from the current `develop`.
+- When the user approves the work (and it is committed), merge it into `develop`. Use a fast-forward when possible, otherwise `git merge --no-ff`. Then start the next feature from the updated `develop`.
+- Older `feature/*` branches are history; don't build on them.
+
 ## Commands
 ```bash
 ./gradlew assembleDebug           # debug APK (arm64 only; add -Pemulator for x86_64)
@@ -25,7 +31,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
 ## Rules
-- Branch per piece of work (`feature/...`); commit only when asked. There is no `main` and no remote yet (see `docs/NEXT_STEPS.md`).
+- Commit only when asked. There is no `main` and no remote yet.
 - Never commit `keystore.properties`, `*.jks` or `local.properties` (already git-ignored).
 - Never `am force-stop dev.tapflow.autoclicker` while testing on a device: it switches the accessibility service off, and only the user can turn it back on.
 - If the app starts using the AccessibilityService for something new, bump `Prefs.DISCLOSURE_VERSION` and update:

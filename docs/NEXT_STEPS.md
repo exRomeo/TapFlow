@@ -13,7 +13,7 @@ An Android auto clicker, similar to AG Auto Clicker, built on an `AccessibilityS
 | 3 Release-ready | R8 + resource shrinking, App Bundle with per-ABI native code, signing from `keystore.properties`, crash-safe storage, versioned re-consent, privacy policy, backup rules, app icon, `docs/release.md` | `6357686` on `feature/release-ready` |
 | 4 Reliability + customization | Pause on a call, screen off or user touch; keep screen on; switched-off card; phone-maker setup guides; panel kept on screen and aware of rotation; panel modes (Single / Multi / Sync / Record / Find image / Everything); pause/resume/start over; compact panel while running; panel and marker size/opacity/orientation; script details; Controls/Steps tabs with rename and remove; hide markers; traffic-light marker rings; draggable capture bar; 100 ms default delay | `750732a` on `feature/reliability` |
 
-All three branches stack on each other (`feature/reliability` contains everything). There is **no `main` branch and no remote yet**.
+**`develop` holds the latest approved work** (everything above plus these docs). New work goes on a `feature/<name>` branch cut from `develop` and is merged back once approved; see "Branches" in `CLAUDE.md`. The older `feature/*` branches are history. There is **no `main` branch and no remote yet**.
 
 ## Code map (`app/src/main/kotlin/dev/tapflow/autoclicker/`)
 - `service/ClickerService.kt`: the accessibility service. Owns the runner, overlay, stores, screen-off receiver and touch watcher.
@@ -47,7 +47,8 @@ All three branches stack on each other (`feature/reliability` contains everythin
 
 ### A. Publishing prep (recommended first: the 14-day closed test runs in the background)
 Can be done in code:
-- [ ] Create `main` from `feature/reliability` (all three branches are linear, so a fast-forward works) and add a remote once one exists.
+- [x] Create `develop` with the latest approved work.
+- [ ] Decide on `main` (e.g. released versions only, cut from `develop`) and add a remote once one exists.
 - [ ] Strip leftover debug-only details. `Log.d` is already removed by R8; check for anything else.
 - [ ] Localization, for example Arabic: move UI strings into `strings.xml` and add `values-ar`; check RTL layout of the panel and forms.
 - [ ] Prepare a release build for the closed testing track (`./gradlew bundleRelease`) and bump `versionCode`.
